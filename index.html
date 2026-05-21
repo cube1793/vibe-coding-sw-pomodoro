@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>뽀모도로 학습 타이머 & 할 일 관리</title>
+    <style>
+        /* CSS Reset 및 변수 정의 */
+        :root {
+            --bg-color: #f8f9fa;
+            --container-bg: #ffffff;
+            --text-primary: #212529;
+            --text-secondary: #6c757d;
+            --primary-color: #4f46e5; /* Indigo */
+            --primary-hover: #4338ca;
+            --accent-color: #ef4444; /* Red for focus */
+            --break-color: #10b981; /* Green for break */
+            --border-color: #e5e7eb;
+            --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            line-height: 1.5;
+            padding: 2rem 1rem;
+        }
+
+        /* 레이아웃 구성 */
+        .app-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (min-width: 768px) {
+            .app-container {
+                grid-template-columns: 1fr 1fr;
+            }
+            .timer-section {
+                grid-column: span 2;
+            }
+        }
+
+        @media (min-width: 1024px) {
+            .app-container {
+                grid-template-columns: 3fr 4fr 3fr;
+            }
+            .timer-section {
+                grid-column: span 1;
+            }
+        }
+
+        /* 공통 카드 스타일 */
+        .card {
+            background-color: var(--container-bg);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: var(--shadow);
+            border: 1px solid var(--border-color);
+        }
+
+        .card-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            color: var(--text-primary);
+            border-bottom: 2px solid var(--border-color);
+            padding-bottom: 0.5rem;
+        }
+
+        /* 1. 타이머 섹션 스타일 */
+        .timer-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+        }
+
+        .timer-state {
+            font-size: 1rem;
+            font-weight: 500;
+            color: var(--accent-color);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 0.5rem;
+        }
+
+        .timer-display {
+            font-size: 4.5rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            margin: 1rem 0;
+            color: var(--text-primary);
+        }
+
+        .timer-controls {
+            display: flex;
+            gap: 0.75rem;
+            width: 100%;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .btn-primary {
+            background-color: var(--primary-color);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background-color: var(--primary-hover);
+        }
+
+        .btn-secondary {
+            background-color: var(--bg-color);
+            color: var(--text-secondary);
+            border: 1px solid var(--border-color);
+        }
+
+        .btn-secondary:hover {
+            background-color: var(--border-color);
+        }
+
+        /* 2. 할 일 목록 섹션 스타일 */
+        .task-input-group {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .task-input {
+            flex: 1;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+
+        .task-est-select {
+            width: 80px;
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 0.95rem;
+            background-color: white;
+        }
+
+        .task-list {
+            list-style: none;
+            max-height: 350px;
+            overflow-y: auto;
+        }
+
+        .task-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.75rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        .task-item-left {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .task-checkbox {
+            width: 1.1rem;
+            height: 1.1rem;
+            cursor: pointer;
+        }
+
+        .task-text {
+            font-size: 0.95rem;
+        }
+
+        .task-text.completed {
+            text-decoration: line-through;
+            color: var(--text-secondary);
+        }
+
+        .task-meta {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-delete {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-size: 0.9rem;
+        }
+
+        .btn-delete:hover {
+            color: var(--accent-color);
+        }
+
+        /* 3. 통계 섹션 스타일 */
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 1rem;
+        }
+
+        .stat-card {
+            background-color: var(--bg-color);
+            padding: 1rem;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid var(--border-color);
+        }
+
+        .stat-val {
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary-color);
+            margin-top: 0.25rem;
+        }
+
+        .stat-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <!-- 통계 세션 (Analytics Bounded Context) -->
+        <section class="card" id="analytics-panel">
+            <h2 class="card-title">오늘의 학습 현황</h2>
+            <div class="stat-grid">
+                <div class="stat-card">
+                    <p class="stat-label">완료한 뽀모도로</p>
+                    <p class="stat-val" id="stat-completed-pomodoros">4 / 8</p>
+                </div>
+                <div class="stat-card">
+                    <p class="stat-label">총 집중 시간</p>
+                    <p class="stat-val" id="stat-total-time">100 분</p>
+                </div>
+                <div class="stat-card">
+                    <p class="stat-label">할 일 완료율</p>
+                    <p class="stat-val" id="stat-completion-rate">50%</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 타이머 세션 (Timer Bounded Context) -->
+        <section class="card timer-section" id="timer-panel">
+            <div class="timer-state" id="timer-status">집중 시간 (Focus)</div>
+            <div class="timer-display" id="timer-display">25:00</div>
+            <div class="timer-controls">
+                <button class="btn btn-primary" id="btn-timer-start">시작</button>
+                <button class="btn btn-secondary" id="btn-timer-pause">일시정지</button>
+                <button class="btn btn-secondary" id="btn-timer-reset">초기화</button>
+            </div>
+        </section>
+
+        <!-- 할 일 관리 세션 (Task Bounded Context) -->
+        <section class="card" id="task-panel">
+            <h2 class="card-title">할 일 목록</h2>
+            <div class="task-input-group">
+                <input type="text" class="task-input" id="task-input-field" placeholder="수행할 작업을 입력하세요...">
+                <select class="task-est-select" id="task-est-input" title="예상 뽀모도로 세션 개수">
+                    <option value="1">🍅 1</option>
+                    <option value="2">🍅 2</option>
+                    <option value="3">🍅 3</option>
+                    <option value="4">🍅 4</option>
+                    <option value="5">🍅 5</option>
+                </select>
+                <button class="btn btn-primary" id="btn-add-task" style="flex: none;">추가</button>
+            </div>
+            <ul class="task-list" id="task-list-container">
+                <!-- 샘플 데이터 1 -->
+                <li class="task-item">
+                    <div class="task-item-left">
+                        <input type="checkbox" class="task-checkbox">
+                        <span class="task-text">알고리즘 문제 풀이</span>
+                    </div>
+                    <div class="task-meta">
+                        <span>🍅 1 / 2</span>
+                        <button class="btn-delete" title="삭제">✕</button>
+                    </div>
+                </li>
+                <!-- 샘플 데이터 2 -->
+                <li class="task-item">
+                    <div class="task-item-left">
+                        <input type="checkbox" class="task-checkbox" checked>
+                        <span class="task-text completed">컴퓨터 네트워크 과제 읽기</span>
+                    </div>
+                    <div class="task-meta">
+                        <span>🍅 1 / 1</span>
+                        <button class="btn-delete" title="삭제">✕</button>
+                    </div>
+                </li>
+            </ul>
+        </section>
+
+    </div>
+
+</body>
+</html>
