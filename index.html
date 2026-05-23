@@ -323,5 +323,126 @@
 
     </div>
 
+    <!-- 비즈니스 로직 추가 영역 -->
+    <script>
+        // ==========================================
+        // 1. Timer Bounded Context 도메인 객체 정의
+        // ==========================================
+        const TimerDomain = {
+            state: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED'
+            defaultDuration: 25 * 60, // 25분 (초 단위)
+            timeLeft: 25 * 60,
+            intervalId: null,
+
+            // 다른 모듈 간의 전역 간섭을 피하기 위한 콜백 함수 (인터페이스 역할)
+            onTick: null,
+            onStateChange: null,
+            onComplete: null,
+
+            init(config) {
+                this.onTick = config.onTick;
+                this.onStateChange = config.onStateChange;
+                this.onComplete = config.onComplete;
+                this.reset();
+            },
+
+            start() {
+                if (this.state === 'RUNNING') return;
+                this.state = 'RUNNING';
+                this.notifyStateChange();
+
+                this.intervalId = setInterval(() => {
+                    this.timeLeft--;
+                    this.notifyTick();
+
+                    if (this.timeLeft <= 0) {
+                        this.complete();
+                    }
+                }, 1000);
+            },
+
+            pause() {
+                if (this.state !== 'RUNNING') return;
+                clearInterval(this.intervalId);
+                this.state = 'PAUSED';
+                this.notifyStateChange();
+            },
+
+            reset() {
+                clearInterval(this.intervalId);
+                this.state = 'IDLE';
+                this.timeLeft = this.defaultDuration;
+                this.notifyStateChange();
+                this.notifyTick();
+            },
+
+            complete() {
+                clearInterval(this.intervalId);
+                this.state = 'IDLE';
+                this.timeLeft = this.defaultDuration;
+                this.notifyStateChange();
+                this.notifyTick();
+                if (this.onComplete) {
+                    this.onComplete();
+                }
+            },
+
+            notifyTick() {
+                if (this.onTick) this.onTick(this.timeLeft);
+            },
+
+            notifyStateChange() {
+                if (this.onStateChange) this.onStateChange(this.state);
+            }
+        };
+
+        // ==========================================
+        // 2. UI/DOM 바인딩 및 어댑터 레이어
+        // ==========================================
+        document.addEventListener('DOMContentLoaded', () => {
+            const timerDisplay = document.getElementById('timer-display');
+            const timerStatus = document.getElementById('timer-status');
+            const startBtn = document.getElementById('btn-timer-start');
+            const pauseBtn = document.getElementById('btn-timer-pause');
+            const resetBtn = document.getElementById('btn-timer-reset');
+
+            // 초 단위의 정수를 MM:SS 문자열 포맷으로 파싱
+            function formatTime(seconds) {
+                const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
+                const secs = (seconds % 60).toString().padStart(2, '0');
+                return `${mins}:${secs}`;
+            }
+
+            // 타이머 도메인 설정 주입
+            TimerDomain.init({
+                onTick: (timeLeft) => {
+                    timerDisplay.textContent = formatTime(timeLeft);
+                },
+                onStateChange: (state) => {
+                    if (state === 'RUNNING') {
+                        timerStatus.textContent = '집중 시간 (Focusing...)';
+                        timerStatus.style.color = 'var(--accent-color)';
+                    } else if (state === 'PAUSED') {
+                        timerStatus.textContent = '일시정지됨 (Paused)';
+                        timerStatus.style.color = 'var(--text-secondary)';
+                    } else {
+                        timerStatus.textContent = '집중 시간 (Focus)';
+                        timerStatus.style.color = 'var(--text-primary)';
+                    }
+                },
+                onComplete: () => {
+                    // 비동기 알림 처리
+                    setTimeout(() => {
+                        alert('집중 세션이 종료되었습니다! 5분간 휴식하세요.');
+                    }, 100);
+                }
+            });
+
+            // UI 이벤트 등록
+            startBtn.addEventListener('click', () => TimerDomain.start());
+            pauseBtn.addEventListener('click', () => TimerDomain.pause());
+            resetBtn.addEventListener('click', () => TimerDomain.reset());
+        });
+    </script>
 </body>
 </html>
