@@ -257,15 +257,15 @@
             <div class="stat-grid">
                 <div class="stat-card">
                     <p class="stat-label">완료한 뽀모도로</p>
-                    <p class="stat-val" id="stat-completed-pomodoros">4 / 8</p>
+                    <p class="stat-val" id="stat-completed-pomodoros">0 / 8</p>
                 </div>
                 <div class="stat-card">
                     <p class="stat-label">총 집중 시간</p>
-                    <p class="stat-val" id="stat-total-time">100 분</p>
+                    <p class="stat-val" id="stat-total-time">0 분</p>
                 </div>
                 <div class="stat-card">
                     <p class="stat-label">할 일 완료율</p>
-                    <p class="stat-val" id="stat-completion-rate">50%</p>
+                    <p class="stat-val" id="stat-completion-rate">0%</p>
                 </div>
             </div>
         </section>
@@ -296,37 +296,15 @@
                 <button class="btn btn-primary" id="btn-add-task" style="flex: none;">추가</button>
             </div>
             <ul class="task-list" id="task-list-container">
-                <!-- 샘플 데이터 1 -->
-                <li class="task-item">
-                    <div class="task-item-left">
-                        <input type="checkbox" class="task-checkbox">
-                        <span class="task-text">알고리즘 문제 풀이</span>
-                    </div>
-                    <div class="task-meta">
-                        <span>🍅 1 / 2</span>
-                        <button class="btn-delete" title="삭제">✕</button>
-                    </div>
-                </li>
-                <!-- 샘플 데이터 2 -->
-                <li class="task-item">
-                    <div class="task-item-left">
-                        <input type="checkbox" class="task-checkbox" checked>
-                        <span class="task-text completed">컴퓨터 네트워크 과제 읽기</span>
-                    </div>
-                    <div class="task-meta">
-                        <span>🍅 1 / 1</span>
-                        <button class="btn-delete" title="삭제">✕</button>
-                    </div>
-                </li>
+                <!-- 할 일이 스크립트에 의해 동적으로 생성됩니다. -->
             </ul>
         </section>
 
     </div>
 
-    <!-- 비즈니스 로직 추가 영역 -->
     <script>
         // ==========================================
-        // 1. Timer Bounded Context 도메인 객체 정의
+        // 1. Timer Bounded Context 도메인 정의
         // ==========================================
         const TimerDomain = {
             state: 'IDLE', // 'IDLE' | 'RUNNING' | 'PAUSED'
@@ -334,7 +312,6 @@
             timeLeft: 25 * 60,
             intervalId: null,
 
-            // 다른 모듈 간의 전역 간섭을 피하기 위한 콜백 함수 (인터페이스 역할)
             onTick: null,
             onStateChange: null,
             onComplete: null,
@@ -397,23 +374,180 @@
         };
 
         // ==========================================
-        // 2. UI/DOM 바인딩 및 어댑터 레이어
+        // 2. Task Bounded Context 도메인 정의
+        // ==========================================
+        const TaskDomain = {
+            tasks: [],
+            onTasksChanged: null,
+
+            init(config) {
+                this.onTasksChanged = config.onTasksChanged;
+                // 초기 샘플 데이터 정의
+                this.tasks = [
+                    { id: '1', text: '알고리즘 문제 풀이', completed: false, estimated: 2, actual: 1 },
+                    { id: '2', text: '컴퓨터 네트워크 과제 읽기', completed: true, estimated: 1, actual: 1 }
+                ];
+                this.notify();
+            },
+
+            addTask(text, estimated) {
+                if (!text.trim()) return;
+                const newTask = {
+                    id: Date.now().toString(),
+                    text: text.trim(),
+                    completed: false,
+                    estimated: parseInt(estimated, 10),
+                    actual: 0
+                };
+                this.tasks.push(newTask);
+                this.notify();
+            },
+
+            toggleTask(id) {
+                const task = this.tasks.find(t => t.id === id);
+                if (task) {
+                    task.completed = !task.completed;
+                    this.notify();
+                }
+            },
+
+            deleteTask(id) {
+                this.tasks = this.tasks.filter(t => t.id !== id);
+                this.notify();
+            },
+
+            // 현재 진행 중인 첫 번째 미완료 작업의 실제 뽀모도로 세션 카운트를 누적
+            incrementActiveTaskPomodoro() {
+                const activeTask = this.tasks.find(t => !t.completed);
+                if (activeTask) {
+                    activeTask.actual++;
+                    this.notify();
+                }
+            },
+
+            notify() {
+                if (this.onTasksChanged) {
+                    this.onTasksChanged([...this.tasks]);
+                }
+            }
+        };
+
+        // ==========================================
+        // 3. Analytics Bounded Context 도메인 정의
+        // ==========================================
+        const AnalyticsDomain = {
+            completedPomodoros: 4, // 초기 샘플 데이터
+            totalStudyTime: 100,   // 초기 샘플 데이터 (분 단위)
+            completionRate: 0,
+            onStatsChanged: null,
+
+            init(config) {
+                this.onStatsChanged = config.onStatsChanged;
+            },
+
+            addPomodoroSession() {
+                this.completedPomodoros++;
+                this.totalStudyTime += 25; // 세션당 25분 누적
+                this.notify();
+            },
+
+            updateCompletionRate(tasks) {
+                if (tasks.length === 0) {
+                    this.completionRate = 0;
+                } else {
+                    const completedCount = tasks.filter(t => t.completed).length;
+                    this.completionRate = Math.round((completedCount / tasks.length) * 100);
+                }
+                this.notify();
+            },
+
+            notify() {
+                if (this.onStatsChanged) {
+                    this.onStatsChanged({
+                        completedPomodoros: this.completedPomodoros,
+                        totalStudyTime: this.totalStudyTime,
+                        completionRate: this.completionRate
+                    });
+                }
+            }
+        };
+
+        // ==========================================
+        // 4. UI/DOM 바인딩 및 어댑터 통합 레이어
         // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
+            // DOM Elements
             const timerDisplay = document.getElementById('timer-display');
             const timerStatus = document.getElementById('timer-status');
             const startBtn = document.getElementById('btn-timer-start');
             const pauseBtn = document.getElementById('btn-timer-pause');
             const resetBtn = document.getElementById('btn-timer-reset');
 
-            // 초 단위의 정수를 MM:SS 문자열 포맷으로 파싱
+            const taskInputField = document.getElementById('task-input-field');
+            const taskEstInput = document.getElementById('task-est-input');
+            const addTaskBtn = document.getElementById('btn-add-task');
+            const taskListContainer = document.getElementById('task-list-container');
+
+            const statCompletedPomodoros = document.getElementById('stat-completed-pomodoros');
+            const statTotalTime = document.getElementById('stat-total-time');
+            const statCompletionRate = document.getElementById('stat-completion-rate');
+
+            // 유틸리티 함수
             function formatTime(seconds) {
                 const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
                 const secs = (seconds % 60).toString().padStart(2, '0');
                 return `${mins}:${secs}`;
             }
 
-            // 타이머 도메인 설정 주입
+            // [DOM 렌더러] 할 일 목록 가상화 출력
+            function renderTaskList(tasks) {
+                taskListContainer.innerHTML = '';
+                tasks.forEach(task => {
+                    const li = document.createElement('li');
+                    li.className = 'task-item';
+
+                    li.innerHTML = `
+                        <div class="task-item-left">
+                            <input type="checkbox" class="task-checkbox" ${task.completed ? 'checked' : ''}>
+                            <span class="task-text ${task.completed ? 'completed' : ''}">${task.text}</span>
+                        </div>
+                        <div class="task-meta">
+                            <span>🍅 ${task.actual} / ${task.estimated}</span>
+                            <button class="btn-delete" title="삭제">✕</button>
+                        </div>
+                    `;
+
+                    // 리스트 노드 내 이벤트 바인딩
+                    const checkbox = li.querySelector('.task-checkbox');
+                    checkbox.addEventListener('change', () => TaskDomain.toggleTask(task.id));
+
+                    const deleteBtn = li.querySelector('.btn-delete');
+                    deleteBtn.addEventListener('click', () => TaskDomain.deleteTask(task.id));
+
+                    taskListContainer.appendChild(li);
+                });
+            }
+
+            // 1) 할 일 도메인 초기화
+            TaskDomain.init({
+                onTasksChanged: (tasks) => {
+                    renderTaskList(tasks);
+                    AnalyticsDomain.updateCompletionRate(tasks);
+                }
+            });
+
+            // 2) 통계 도메인 초기화
+            AnalyticsDomain.init({
+                onStatsChanged: (stats) => {
+                    statCompletedPomodoros.textContent = `${stats.completedPomodoros} / 8`;
+                    statTotalTime.textContent = `${stats.totalStudyTime} 분`;
+                    statCompletionRate.textContent = `${stats.completionRate}%`;
+                }
+            });
+            // 초기 통계 수치 반영 강제 수행
+            AnalyticsDomain.updateCompletionRate(TaskDomain.tasks);
+
+            // 3) 타이머 도메인 초기화 (가장 중요한 비즈니스 연동 지점)
             TimerDomain.init({
                 onTick: (timeLeft) => {
                     timerDisplay.textContent = formatTime(timeLeft);
@@ -431,7 +565,10 @@
                     }
                 },
                 onComplete: () => {
-                    // 비동기 알림 처리
+                    // 타이머 완료 시 세 개 컨텍스트가 결합하여 데이터 갱신
+                    AnalyticsDomain.addPomodoroSession();
+                    TaskDomain.incrementActiveTaskPomodoro();
+
                     setTimeout(() => {
                         alert('집중 세션이 종료되었습니다! 5분간 휴식하세요.');
                     }, 100);
@@ -442,6 +579,22 @@
             startBtn.addEventListener('click', () => TimerDomain.start());
             pauseBtn.addEventListener('click', () => TimerDomain.pause());
             resetBtn.addEventListener('click', () => TimerDomain.reset());
+
+            addTaskBtn.addEventListener('click', () => {
+                const text = taskInputField.value;
+                const est = taskEstInput.value;
+                if (text.trim()) {
+                    TaskDomain.addTask(text, est);
+                    taskInputField.value = '';
+                    taskEstInput.value = '1';
+                }
+            });
+
+            taskInputField.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') {
+                    addTaskBtn.click();
+                }
+            });
         });
     </script>
 </body>
