@@ -118,7 +118,7 @@
             font-size: 1rem;
             font-weight: 600;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: background-color 0.2s, opacity 0.2s;
         }
 
         .btn-primary {
@@ -138,6 +138,14 @@
 
         .btn-secondary:hover {
             background-color: var(--border-color);
+        }
+
+        /* 비활성화 버튼 디자인 */
+        .btn:disabled {
+            background-color: var(--border-color);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+            opacity: 0.5;
         }
 
         /* 2. 할 일 목록 섹션 스타일 */
@@ -296,7 +304,7 @@
                 <button class="btn btn-primary" id="btn-add-task" style="flex: none;">추가</button>
             </div>
             <ul class="task-list" id="task-list-container">
-                <!-- 할 일이 스크립트에 의해 동적으로 생성됩니다. -->
+                <!-- 동적 마크업 생성 영역 -->
             </ul>
         </section>
 
@@ -382,7 +390,7 @@
 
             init(config) {
                 this.onTasksChanged = config.onTasksChanged;
-                // 초기 샘플 데이터 정의
+                // 초기 데이터 시드
                 this.tasks = [
                     { id: '1', text: '알고리즘 문제 풀이', completed: false, estimated: 2, actual: 1 },
                     { id: '2', text: '컴퓨터 네트워크 과제 읽기', completed: true, estimated: 1, actual: 1 }
@@ -390,11 +398,19 @@
                 this.notify();
             },
 
+            // 중복 입력을 확인하는 방어 검증 로직
+            isDuplicate(text) {
+                const targetText = text.trim().toLowerCase();
+                return this.tasks.some(task => !task.completed && task.text.trim().toLowerCase() === targetText);
+            },
+
             addTask(text, estimated) {
-                if (!text.trim()) return;
+                const cleanText = text.trim();
+                if (!cleanText) return;
+
                 const newTask = {
                     id: Date.now().toString(),
-                    text: text.trim(),
+                    text: cleanText,
                     completed: false,
                     estimated: parseInt(estimated, 10),
                     actual: 0
@@ -416,7 +432,6 @@
                 this.notify();
             },
 
-            // 현재 진행 중인 첫 번째 미완료 작업의 실제 뽀모도로 세션 카운트를 누적
             incrementActiveTaskPomodoro() {
                 const activeTask = this.tasks.find(t => !t.completed);
                 if (activeTask) {
@@ -436,8 +451,8 @@
         // 3. Analytics Bounded Context 도메인 정의
         // ==========================================
         const AnalyticsDomain = {
-            completedPomodoros: 4, // 초기 샘플 데이터
-            totalStudyTime: 100,   // 초기 샘플 데이터 (분 단위)
+            completedPomodoros: 4, // 시드값 설정
+            totalStudyTime: 100,
             completionRate: 0,
             onStatsChanged: null,
 
@@ -447,7 +462,7 @@
 
             addPomodoroSession() {
                 this.completedPomodoros++;
-                this.totalStudyTime += 25; // 세션당 25분 누적
+                this.totalStudyTime += 25;
                 this.notify();
             },
 
@@ -476,7 +491,7 @@
         // 4. UI/DOM 바인딩 및 어댑터 통합 레이어
         // ==========================================
         document.addEventListener('DOMContentLoaded', () => {
-            // DOM Elements
+            // DOM Elements 정의
             const timerDisplay = document.getElementById('timer-display');
             const timerStatus = document.getElementById('timer-status');
             const startBtn = document.getElementById('btn-timer-start');
@@ -492,14 +507,39 @@
             const statTotalTime = document.getElementById('stat-total-time');
             const statCompletionRate = document.getElementById('stat-completion-rate');
 
-            // 유틸리티 함수
+            // 포맷 데이터 파서 유틸리티
             function formatTime(seconds) {
                 const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
                 const secs = (seconds % 60).toString().padStart(2, '0');
                 return `${mins}:${secs}`;
             }
 
-            // [DOM 렌더러] 할 일 목록 가상화 출력
+            // 할 일 추가 서브미션 처리 함수
+            function submitTask() {
+                const text = taskInputField.value;
+                const est = taskEstInput.value;
+                const trimmed = text.trim();
+
+                // 1) 비어 있는 입력값 예외 검증
+                if (!trimmed) {
+                    alert('할 일 내용을 올바르게 입력해 주세요.');
+                    taskInputField.focus();
+                    return;
+                }
+
+                // 2) 중복된 입력값 존재 확인 검증
+                if (TaskDomain.isDuplicate(trimmed)) {
+                    alert('진행 중인 할 일 목록에 이미 같은 이름의 작업이 존재합니다.');
+                    taskInputField.focus();
+                    return;
+                }
+
+                TaskDomain.addTask(trimmed, est);
+                taskInputField.value = '';
+                taskEstInput.value = '1';
+            }
+
+            // 할 일 렌더링 핸들러
             function renderTaskList(tasks) {
                 taskListContainer.innerHTML = '';
                 tasks.forEach(task => {
@@ -517,18 +557,14 @@
                         </div>
                     `;
 
-                    // 리스트 노드 내 이벤트 바인딩
-                    const checkbox = li.querySelector('.task-checkbox');
-                    checkbox.addEventListener('change', () => TaskDomain.toggleTask(task.id));
-
-                    const deleteBtn = li.querySelector('.btn-delete');
-                    deleteBtn.addEventListener('click', () => TaskDomain.deleteTask(task.id));
+                    li.querySelector('.task-checkbox').addEventListener('change', () => TaskDomain.toggleTask(task.id));
+                    li.querySelector('.btn-delete').addEventListener('click', () => TaskDomain.deleteTask(task.id));
 
                     taskListContainer.appendChild(li);
                 });
             }
 
-            // 1) 할 일 도메인 초기화
+            // 모듈 이벤트를 처리하기 위한 통합 구성 정의
             TaskDomain.init({
                 onTasksChanged: (tasks) => {
                     renderTaskList(tasks);
@@ -536,7 +572,6 @@
                 }
             });
 
-            // 2) 통계 도메인 초기화
             AnalyticsDomain.init({
                 onStatsChanged: (stats) => {
                     statCompletedPomodoros.textContent = `${stats.completedPomodoros} / 8`;
@@ -544,55 +579,47 @@
                     statCompletionRate.textContent = `${stats.completionRate}%`;
                 }
             });
-            // 초기 통계 수치 반영 강제 수행
             AnalyticsDomain.updateCompletionRate(TaskDomain.tasks);
 
-            // 3) 타이머 도메인 초기화 (가장 중요한 비즈니스 연동 지점)
             TimerDomain.init({
                 onTick: (timeLeft) => {
                     timerDisplay.textContent = formatTime(timeLeft);
                 },
                 onStateChange: (state) => {
+                    // 타이머 진행 중 상태일 때 시작 버튼 비활성화 상태 전이 처리
                     if (state === 'RUNNING') {
+                        startBtn.disabled = true;
                         timerStatus.textContent = '집중 시간 (Focusing...)';
                         timerStatus.style.color = 'var(--accent-color)';
-                    } else if (state === 'PAUSED') {
-                        timerStatus.textContent = '일시정지됨 (Paused)';
-                        timerStatus.style.color = 'var(--text-secondary)';
                     } else {
-                        timerStatus.textContent = '집중 시간 (Focus)';
-                        timerStatus.style.color = 'var(--text-primary)';
+                        startBtn.disabled = false;
+                        if (state === 'PAUSED') {
+                            timerStatus.textContent = '일시정지됨 (Paused)';
+                            timerStatus.style.color = 'var(--text-secondary)';
+                        } else {
+                            timerStatus.textContent = '집중 시간 (Focus)';
+                            timerStatus.style.color = 'var(--text-primary)';
+                        }
                     }
                 },
                 onComplete: () => {
-                    // 타이머 완료 시 세 개 컨텍스트가 결합하여 데이터 갱신
                     AnalyticsDomain.addPomodoroSession();
                     TaskDomain.incrementActiveTaskPomodoro();
-
                     setTimeout(() => {
                         alert('집중 세션이 종료되었습니다! 5분간 휴식하세요.');
                     }, 100);
                 }
             });
 
-            // UI 이벤트 등록
+            // UI 이벤트 리스너 마운트
             startBtn.addEventListener('click', () => TimerDomain.start());
             pauseBtn.addEventListener('click', () => TimerDomain.pause());
             resetBtn.addEventListener('click', () => TimerDomain.reset());
-
-            addTaskBtn.addEventListener('click', () => {
-                const text = taskInputField.value;
-                const est = taskEstInput.value;
-                if (text.trim()) {
-                    TaskDomain.addTask(text, est);
-                    taskInputField.value = '';
-                    taskEstInput.value = '1';
-                }
-            });
+            addTaskBtn.addEventListener('click', submitTask);
 
             taskInputField.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter') {
-                    addTaskBtn.click();
+                    submitTask();
                 }
             });
         });
